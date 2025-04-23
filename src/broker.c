@@ -10,80 +10,76 @@
 #define MAX_MESSAGE_LENGTH 256
 #define PORT 8080
 #define MAX_CONNECTIONS 10
+#define QUEUE_CAPACITY 10
 
-// Creacion del nodo 
-typedef struct Node {
-    char message[MAX_MESSAGE_LENGTH];
-    struct Node* next;
-} Node;
+pthread_mutex_t mutexCola = PTHREAD_MUTEX_INITIALIZER;
 
-// Creacion de la cola, con nodo next y el anterior 
-typedef struct MessageQueue {
-    Node* front;
-    Node* rear;
-    pthread_mutex_t mutex;  // Para proteger accesos concurrentes a la cola
-} MessageQueue;
+typedef struct {
+    int id;
+    char mensaje[MAX_MESSAGE_LENGTH];
+} Mensaje;
 
-// Inicializar cola
-void initQueue(MessageQueue* queue) {
-    queue->front = NULL;
-    queue->rear = NULL;
-    pthread_mutex_init(&queue->mutex, NULL);
+
+//       IMPLEMENTACION DE LA COLA CIRCULAR
+typedef struct {
+    Mensaje mensajes[QUEUE_CAPACITY];
+    int front;
+    int rear;
+    int size;
+} ColaCircular;
+
+void initQueue(ColaCircular* queue) {
+    queue->front = 0;
+    queue->rear = 0;
+    queue->size = 0;
 }
 
-// Encola un mensaje
-void enqueue(MessageQueue* queue, const char* message) {
-    pthread_mutex_lock(&queue->mutex);
-
-    Node* newNode = (Node*)malloc(sizeof(Node));
-    strncpy(newNode->message, message, MAX_MESSAGE_LENGTH);
-    newNode->next = NULL;
-
-    if (queue->rear == NULL) {
-        queue->front = queue->rear = newNode;
-    }
-    else {
-        queue->rear->next = newNode;
-        queue->rear = newNode;
-    }
-
-    pthread_mutex_unlock(&queue->mutex);
+int isFull(ColaCircular* queue) {
+    return queue->size == QUEUE_CAPACITY;
 }
 
-// Desencola un mensaje
-char* dequeue(MessageQueue* queue) {
-    pthread_mutex_lock(&queue->mutex);
-
-    if (queue->front == NULL) {
-        pthread_mutex_unlock(&queue->mutex);
-        return NULL;
-    }
-
-    Node* temp = queue->front;
-    char* message = strdup(temp->message); // devuelve una copia del string
-    queue->front = queue->front->next;
-
-    if (queue->front == NULL)
-        queue->rear = NULL;
-
-    free(temp);
-    pthread_mutex_unlock(&queue->mutex);
-    return message;
+int isEmpty(ColaCircular* queue) {
+    return queue->size == 0;
 }
 
-void freeQueue(MessageQueue* queue) {
-    pthread_mutex_lock(&queue->mutex);
+int enqueue(ColaCircular* queue, Mensaje mensaje) {
+    pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
 
-    while (queue->front != NULL) {
-        Node* temp = queue->front;
-        queue->front = queue->front->next;
-        free(temp);
+    if (queue->size == QUEUE_CAPACITY) {
+        pthread_mutex_unlock(&mutexCola);  // Desbloquear antes de salir
+        return -1; // Cola llena
     }
 
-    pthread_mutex_unlock(&queue->mutex);
-    pthread_mutex_destroy(&queue->mutex);
+    queue->mensajes[queue->rear] = mensaje;
+    queue->rear = (queue->rear + 1) % QUEUE_CAPACITY;
+    queue->size++;
+
+    pthread_mutex_unlock(&mutexCola);  // Desbloquear al finalizar
+    return 0;
 }
 
+
+int dequeue(ColaCircular* queue, Mensaje* mensaje) {
+    pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
+
+    if (queue->size == 0) {
+        pthread_mutex_unlock(&mutexCola);  // Desbloquear antes de salir
+        return -1; // Cola vacía
+    }
+
+    *mensaje = queue->mensajes[queue->front];
+    queue->front = (queue->front + 1) % QUEUE_CAPACITY;
+    queue->size--;
+
+    pthread_mutex_unlock(&mutexCola);  // Desbloquear al finalizar
+    return 0;
+}
+
+
+
+
+
+//                       ARCHI
 // Apertura del archivo.log
 FILE* abrir_archivo(const char* nombre_archivo) {
     FILE* archivo = fopen(nombre_archivo, "a");  // Modo "a" para agregar al archivo sin sobrescribir
@@ -94,69 +90,100 @@ FILE* abrir_archivo(const char* nombre_archivo) {
     return archivo;
 }
 
-// Método para escribir un mensaje en el archivo
+// M�todo para escribir un mensaje en el archivo
 void escribir_log(FILE* archivo, const char* mensaje) {
     fprintf(archivo, "%s\n", mensaje);
     fflush(archivo); // Aseguramos que se escriba inmediatamente
 }
 
-// Método para cerrar el archivo
+// M�todo para cerrar el archivo
 void cerrar_archivo(FILE* archivo) {
     fclose(archivo);
 }
+//-----------------------------------------------------------------------------------
 
 // Variables Globales
-MessageQueue colaGlobal;
-FILE* archivoLog;
+ColaCircular colaGlobal; //No se si deberian ser locales
+FILE* archivoLog;        //No se si deberian ser locales
+
 int server_fd;
 volatile int keepRunning = 1;
 
-// Maneja la señal para terminar el programa
+
+// Maneja la se�al para terminar el programa
 void handle_signal(int sig) {
-    printf("\nRecibida señal de terminación. Cerrando broker...\n");
+    printf("\nRecibida se�al de terminaci�n. Cerrando broker...\n");
     keepRunning = 0;
     // Cerrar el socket para que accept() se libere
     close(server_fd);
 }
 
-// Función para procesar mensajes de la cola y guardarlos en el archivo
+// Funci�n para procesar mensajes de la cola y guardarlos en el archivo
 void* procesador_mensajes(void* arg) {
     while (keepRunning) {
-        char* msg = dequeue(&colaGlobal);
-        if (msg != NULL) {
-            escribir_log(archivoLog, msg);
-            printf("Guardado en log: %s\n", msg);
-            free(msg);
+        Mensaje mensaje;
+        if (dequeue(&colaGlobal, &mensaje) == 0) {
+            escribir_log(archivoLog, mensaje.mensaje);
+            printf("Guardado en log: %s\n", mensaje.mensaje);
         }
-        usleep(100000); // Esperar 100ms si no hay mensajes
+        usleep(100000); // Esperar 100ms
     }
     return NULL;
 }
 
-// Maneja la conexión con un cliente
+//                           SOCKETS 
+// Maneja la conexi�n con un cliente
 void* handle_client(void* socket_desc) {
     int client_sock = *(int*)socket_desc;
     free(socket_desc);
 
-    char buffer[MAX_MESSAGE_LENGTH];
-    int read_size;
+    char tipo[4] = {0};  // Buffer para verificar si es "GET"
 
-    while ((read_size = recv(client_sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
-        buffer[read_size] = '\0';
-        printf("Mensaje recibido: %s\n", buffer);
-        enqueue(&colaGlobal, buffer);
+    int read_size = recv(client_sock, tipo, 3, MSG_PEEK);  // Leer sin consumir
+    if (read_size <= 0) {
+        close(client_sock);
+        return NULL;
     }
 
-    if (read_size == 0) {
-        printf("Cliente desconectado\n");
-    }
-    else if (read_size == -1) {
-        perror("Error en recv");
+    if (strncmp(tipo, "GET", 3) == 0) {
+        // Es un consumer
+        char dummy[4];
+        recv(client_sock, dummy, 3, 0);  // Consumimos los 3 bytes del "GET"
+        printf("Consumer conectado\n");
+
+        while (keepRunning) {
+            Mensaje mensaje;
+            if (dequeue(&colaGlobal, &mensaje) == 0) {
+                send(client_sock, &mensaje, sizeof(Mensaje), 0);
+                printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
+            } else {
+                usleep(100000);  // Espera un poco si la cola está vacía
+            }
+        }
+
+    } else {
+        // Es un producer
+        Mensaje nuevoMensaje;
+        while ((read_size = recv(client_sock, &nuevoMensaje, sizeof(Mensaje), 0)) > 0) {
+            printf("Mensaje recibido: %s\n", nuevoMensaje.mensaje);
+
+            if (enqueue(&colaGlobal, nuevoMensaje) == -1) {
+                printf("Cola llena, mensaje descartado\n");
+            }
+        }
+
+        if (read_size == 0) {
+            printf("Producer desconectado\n");
+        } else if (read_size == -1) {
+            perror("Error en recv");
+        }
     }
 
     close(client_sock);
     return NULL;
 }
+
+
 
 int main() {
     struct sockaddr_in address;
@@ -169,23 +196,23 @@ int main() {
     // Abrir el archivo de log
     archivoLog = abrir_archivo("archivo.log");
 
-    // Configurar el manejo de señales
+    // Configurar el manejo de se�ales
     signal(SIGINT, handle_signal);
 
     // Crear socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("Fallo en la creación del socket");
+        perror("Fallo en la creaci�n del socket");
         exit(EXIT_FAILURE);
     }
 
-    // Para permitir reutilización del puerto
+    // Para permitir reutilizaci�n del puerto
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
-    // Configurar dirección del socket
+    // Configurar direcci�n del socket
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
@@ -211,12 +238,12 @@ int main() {
     while (keepRunning) {
         int new_socket;
         if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-            if (!keepRunning) break; // Si se cerró por la señal, es normal
+            if (!keepRunning) break; // Si se cerr� por la se�al, es normal
             perror("Fallo en accept");
             continue;
         }
 
-        printf("Nueva conexión aceptada\n");
+        printf("Nueva conexi�n aceptada\n");
 
         // Crear un hilo para manejar al cliente
         pthread_t client_thread;
@@ -229,7 +256,7 @@ int main() {
             free(client_sock);
         }
         else {
-            // Desvincular el hilo para que se limpie automáticamente
+            // Desvincular el hilo para que se limpie autom�ticamente
             pthread_detach(client_thread);
         }
     }
@@ -237,8 +264,6 @@ int main() {
     // Esperar a que finalice el hilo procesador
     pthread_join(processor_thread, NULL);
 
-    // Limpieza final
-    freeQueue(&colaGlobal);
     cerrar_archivo(archivoLog);
     close(server_fd);
 

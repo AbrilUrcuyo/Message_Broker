@@ -5,105 +5,99 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+//crear una estructura de mensaje para enviar el id y el mensaje
+//para luego tener un cola de mensajes en el broker y que sea una cola circular
 
-#define NUM_HILOS 3
-#define MENSAJES_POR_HILO 5
-#define MAX_MESSAGE_LENGTH 256
-#define SERVER_IP "127.0.0.1"  // Localhost/IP local
+
+   
+#define MAX_MESSAGE_LENGTH 256 // Tamaño de los msj
+#define SERVER_IP "127.0.0.1"  // Esto es para poner la ip especifica del broker
 #define PORT 8080              // Mismo puerto que el broker
 
-pthread_mutex_t mutex_socket = PTHREAD_MUTEX_INITIALIZER;
-int sock = 0;  // Socket global para comunicación con el broker
 
-// Inicializar conexión con el broker
+typedef struct {
+    int id;                           // ID del mensaje (puede ser ID del producer o número de secuencia)
+    char mensaje[MAX_MESSAGE_LENGTH]; // Contenido del mensaje
+} Mensaje;
+
+
+// Establece conexion con el broker
 int conectar_broker() {
+    int sock=0;
+    //Estructura del Socket
     struct sockaddr_in serv_addr;
 
-    // Crear socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Error en la creación del socket");
+    //Creamos el socket
+    //AF_INET     -> Indica que es para ipv4
+    //SOCK_STREAM -> Indica que es un socket TCP 
+    // 0          -> Selecciona el protocolo adecuado 
+    sock = socket(AF_INET, SOCK_STREAM, 0); //Si el valor almacenado en sock es mayor a 0 entonces se creo con exito
+    if (sock < 0) {
+        perror("Error creando el socket");
         return -1;
     }
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
+    serv_addr.sin_family = AF_INET;   //Indican que seran socket que trabajan con ipv4
+    serv_addr.sin_port = htons(PORT); //Puerto en el cual esta el server
 
-    // Convertir dirección IP de texto a binario
+    // Convertir direcci�n IP de texto a binario
+    // esto ya que el sistema operativo necesita conocer la dir ip en binario y no cadena de texto 
+    // de eso se encarga inet_pton
     if (inet_pton(AF_INET, SERVER_IP, &serv_addr.sin_addr) <= 0) {
-        perror("Dirección inválida o no soportada");
+        perror("Direcci�n inv�lida o no soportada");
         return -1;
     }
 
     // Conectar al broker
+    // sock -> id del socket creado
+    // (struct sockaddr*)&serv_addr -> es el sockaddr_in que ya tenemos pero es casteado a un sockaddr
+    // sizeof(server_addr) -> es el tama�o de la estructura del socket
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Error en la conexión");
+        perror("Error en la conexi�n");
         return -1;
     }
 
     printf("Conectado al broker en %s:%d\n", SERVER_IP, PORT);
-    return 0;
+    return sock;
 }
 
-// Función para enviar un mensaje al broker
-int enviar_mensaje(const char* mensaje) {
-    pthread_mutex_lock(&mutex_socket);
-    int result = send(sock, mensaje, strlen(mensaje), 0);
-    pthread_mutex_unlock(&mutex_socket);
+// Envio del mensaje por medio del socket
+int enviar_mensaje(int sock, const Mensaje* mensaje) {
+    size_t len = sizeof(Mensaje); // Tamaño total del struct
 
-    if (result < 0) {
-        perror("Error al enviar mensaje");
+    if (send(sock, mensaje, len, 0) != len) {
+        perror("Error al enviar el mensaje");
         return -1;
     }
-
     return 0;
 }
 
-void* generar_mensajes(void* arg) {
-    long id = (long)arg;
 
-    for (int i = 0; i < MENSAJES_POR_HILO; i++) {
-        // Crear mensaje
-        char mensaje[MAX_MESSAGE_LENGTH];
-        snprintf(mensaje, sizeof(mensaje), "Hilo %ld: mensaje %d", id, i + 1);
+int main(int argc, char* argv[]) {
 
-        // Enviar mensaje al broker
-        if (enviar_mensaje(mensaje) == 0) {
-            printf("Enviado: %s\n", mensaje);
-        }
+    
+    int id =0;
 
-        // Esperar un poco entre mensajes
-        usleep(200000); // 200ms
-    }
+    if (argc > 1) {
+        id = atoi(argv[1]);
+    } 
 
-    return NULL;
-}
 
-int main() {
-    pthread_t hilos[NUM_HILOS];
-
-    // Conectar con el broker
-    if (conectar_broker() != 0) {
-        fprintf(stderr, "No se pudo conectar al broker. Asegúrate de que esté en ejecución.\n");
+    int sock = conectar_broker();
+    if (sock < 0) {
         return 1;
     }
 
-    // Crear hilos para generar mensajes
-    for (long i = 0; i < NUM_HILOS; i++) {
-        if (pthread_create(&hilos[i], NULL, generar_mensajes, (void*)i) != 0) {
-            perror("Error al crear hilo");
-            continue;
-        }
+    Mensaje msj;
+    msj.id=id;
+    snprintf(msj.mensaje, sizeof(msj.mensaje), "Mensaje x producer %d", id);
+    
+
+    if (enviar_mensaje(sock, &msj) == 0) {
+        printf("Mensaje enviado: ID=%d, contenido='%s'\n", msj.id, msj.mensaje);
     }
 
-    // Esperar a que todos los hilos terminen
-    for (int i = 0; i < NUM_HILOS; i++) {
-        pthread_join(hilos[i], NULL);
-    }
-
-    printf("Todos los hilos han terminado. Cerrando conexión...\n");
-
-    // Cerrar el socket
     close(sock);
-
     return 0;
+
 }
