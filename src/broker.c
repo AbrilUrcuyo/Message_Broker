@@ -42,6 +42,7 @@ int isEmpty(ColaCircular* queue) {
     return queue->size == 0;
 }
 
+//Revisar en los capítulos, creo que el manejo de los mutex lo manejaban de manera más eficiente, pero eso puede quedar para el final
 int enqueue(ColaCircular* queue, Mensaje mensaje) {
     pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
 
@@ -90,13 +91,13 @@ FILE* abrir_archivo(const char* nombre_archivo) {
     return archivo;
 }
 
-// M�todo para escribir un mensaje en el archivo
+// Método para escribir un mensaje en el archivo
 void escribir_log(FILE* archivo, const char* mensaje) {
     fprintf(archivo, "%s\n", mensaje);
     fflush(archivo); // Aseguramos que se escriba inmediatamente
 }
 
-// M�todo para cerrar el archivo
+// Método para cerrar el archivo
 void cerrar_archivo(FILE* archivo) {
     fclose(archivo);
 }
@@ -119,20 +120,22 @@ void handle_signal(int sig) {
 }
 
 // Funci�n para procesar mensajes de la cola y guardarlos en el archivo
-void* procesador_mensajes(void* arg) {
-    while (keepRunning) {
-        Mensaje mensaje;
-        if (dequeue(&colaGlobal, &mensaje) == 0) {
-            escribir_log(archivoLog, mensaje.mensaje);
-            printf("Guardado en log: %s\n", mensaje.mensaje);
-        }
-        usleep(100000); // Esperar 100ms
-    }
-    return NULL;
-}
+// void* procesador_mensajes(void* arg) {
+//     while (keepRunning) {
+//         Mensaje mensaje;
+//         if (dequeue(&colaGlobal, &mensaje) == 0) {
+//             escribir_log(archivoLog, mensaje.mensaje);
+//             printf("Guardado en log: %s\n", mensaje.mensaje);
+//         }
+//         usleep(100000); // Esperar 100ms
+//     }
+//     return NULL;
+// }
 
 //                           SOCKETS 
 // Maneja la conexi�n con un cliente
+//Es mejor separarlo, hacer dos funciones, una para el consumer y otra para el producer y llamarlas aquí. 
+//Para el consumer se puede aprovechar el procesador de mensajes.
 void* handle_client(void* socket_desc) {
     int client_sock = *(int*)socket_desc;
     free(socket_desc);
@@ -153,9 +156,11 @@ void* handle_client(void* socket_desc) {
 
         while (keepRunning) {
             Mensaje mensaje;
-            if (dequeue(&colaGlobal, &mensaje) == 0) {
+            if (dequeue(&colaGlobal, &mensaje) == 0) { //Aquí saca el mensaje de la cola, igual que cuando lo quiere meter en el archivo, hay que juntarlo para que se le hagan las dos operaciones al mismo mensaje.
                 send(client_sock, &mensaje, sizeof(Mensaje), 0);
                 printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
+                escribir_log(archivoLog, mensaje.mensaje);
+                printf("Guardado en log: %s\n", mensaje.mensaje);
             } else {
                 usleep(100000);  // Espera un poco si la cola está vacía
             }
@@ -224,7 +229,7 @@ int main() {
     }
 
     // Escuchar por conexiones entrantes
-    if (listen(server_fd, MAX_CONNECTIONS) < 0) {
+    if (listen(server_fd, MAX_CONNECTIONS) < 0) { //Tal vez sería bueno cambiar este máximo, es de la cantidad de conexiones que pueden estar en espera.
         perror("Fallo en listen");
         exit(EXIT_FAILURE);
     }
@@ -232,7 +237,7 @@ int main() {
     printf("Broker iniciado en puerto %d\n", PORT);
 
     // Iniciar el hilo procesador de mensajes
-    pthread_create(&processor_thread, NULL, procesador_mensajes, NULL);
+    //pthread_create(&processor_thread, NULL, procesador_mensajes, NULL);
 
     // Aceptar conexiones entrantes
     while (keepRunning) {

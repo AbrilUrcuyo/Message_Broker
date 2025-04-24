@@ -1,25 +1,8 @@
-Hilo 1: mensaje 1
-Hilo 2: mensaje 1
-Hilo 1: mensaje 1
-Hilo 1: mensaje 1
-Hilo 1: mensaje 1
-Hilo 1: mensaje 2
-Hilo 2: mensaje 1
-Hilo 1: mensaje 1
-Hilo 1: mensaje 2
-Hilo 2: mensaje 2
-Hilo 1: mensaje 1
-Hilo 1: mensaje 2
-Hilo 1: mensaje 1
-Hilo 2: mensaje 1
-Hilo 1: mensaje 2
-Hilo 2: mensaje 2
-
-
-Mensaje x producer 1
- 1: mensaje 1
- 1: mensaje 2
-Mensaje x producer 1
 
 Mensaje x producer 0
-Mensaje x producer 2
+Mensaje x producer 0
+Mensaje x producer 0
+Mensaje x producer 0
+Mensaje x producer 0
+Mensaje x producer 0
+Mensaje x producer 0
