@@ -1,3 +1,10 @@
+
+//
+//                       ESTA CLASE ESTA LIBRE DE MEMORY LEAKS Y RACE CONDITIONS
+//
+
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

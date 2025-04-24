@@ -1,3 +1,8 @@
+//
+//          EN ESTA CLASE UN 1 MEMORY LEAK y NO HAY RACE CONDITIONS
+//
+
+
 #include <stdio.h>
 #include <stdlib.h>  // Para malloc, free, strdup
 #include <string.h> 
@@ -6,13 +11,23 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
+#include <semaphore.h>
+
+
 
 #define MAX_MESSAGE_LENGTH 256
 #define PORT 8080
 #define MAX_CONNECTIONS 10
-#define QUEUE_CAPACITY 10
+#define QUEUE_CAPACITY 5
 
+
+sem_t espacios_disponibles;
+sem_t mensajes_disponibles;
 pthread_mutex_t mutexCola = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t persister_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t log_mutex= PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexKeepRunning = PTHREAD_MUTEX_INITIALIZER;
+
 
 typedef struct {
     int id;
@@ -44,6 +59,7 @@ int isEmpty(ColaCircular* queue) {
 
 //Revisar en los capítulos, creo que el manejo de los mutex lo manejaban de manera más eficiente, pero eso puede quedar para el final
 int enqueue(ColaCircular* queue, Mensaje mensaje) {
+    sem_wait(&espacios_disponibles);   
     pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
 
     if (queue->size == QUEUE_CAPACITY) {
@@ -56,11 +72,13 @@ int enqueue(ColaCircular* queue, Mensaje mensaje) {
     queue->size++;
 
     pthread_mutex_unlock(&mutexCola);  // Desbloquear al finalizar
+    sem_post(&mensajes_disponibles);  
     return 0;
 }
 
 
 int dequeue(ColaCircular* queue, Mensaje* mensaje) {
+    sem_wait(&mensajes_disponibles);  
     pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
 
     if (queue->size == 0) {
@@ -73,15 +91,13 @@ int dequeue(ColaCircular* queue, Mensaje* mensaje) {
     queue->size--;
 
     pthread_mutex_unlock(&mutexCola);  // Desbloquear al finalizar
+    sem_post(&espacios_disponibles);   
     return 0;
 }
 
 
 
-
-
-//                       ARCHI
-// Apertura del archivo.log
+//                    ARCHIVOS .LOG Y PERSISTER 
 FILE* abrir_archivo(const char* nombre_archivo) {
     FILE* archivo = fopen(nombre_archivo, "a");  // Modo "a" para agregar al archivo sin sobrescribir
     if (archivo == NULL) {
@@ -90,14 +106,22 @@ FILE* abrir_archivo(const char* nombre_archivo) {
     }
     return archivo;
 }
-
-// Método para escribir un mensaje en el archivo
+//               ESCRIBIR EN LOG
 void escribir_log(FILE* archivo, const char* mensaje) {
+    pthread_mutex_lock(&log_mutex);
     fprintf(archivo, "%s\n", mensaje);
     fflush(archivo); // Aseguramos que se escriba inmediatamente
+    pthread_mutex_unlock(&log_mutex);
 }
+//             ESCRIBIR EN PERSISTER
 
-// Método para cerrar el archivo
+void escribir_persister(FILE* archivo, Mensaje *mensaje) {
+    pthread_mutex_lock(&persister_mutex);
+    fprintf(archivo, "[%d]-", mensaje->id); // ID entre corchetes
+    fprintf(archivo, "%s\n", mensaje->mensaje);
+    fflush(archivo); // Aseguramos que se escriba inmediatamente
+    pthread_mutex_unlock(&persister_mutex);
+}
 void cerrar_archivo(FILE* archivo) {
     fclose(archivo);
 }
@@ -106,16 +130,41 @@ void cerrar_archivo(FILE* archivo) {
 // Variables Globales
 ColaCircular colaGlobal; //No se si deberian ser locales
 FILE* archivoLog;        //No se si deberian ser locales
+FILE* persisterFile;
 
 int server_fd;
 volatile int keepRunning = 1;
 
 
+//      ESTO MUTEX ES PARA MANEJAR QUE EL INCREMENTO SE HAGA ADECUDAMENTE
+pthread_mutex_t mutexID = PTHREAD_MUTEX_INITIALIZER;
+int contadorMensajes=0;
+
+//         ASIGNACION DE ID AL MSJ (NO DEPENDE DEL ID DEL PRODUCER)
+int obtener_id_mensaje() {
+    pthread_mutex_lock(&mutexID);
+    int id = contadorMensajes++;
+    pthread_mutex_unlock(&mutexID);
+    return id;
+}
+
+int get_keep_running() {
+    pthread_mutex_lock(&mutexKeepRunning);
+    int value = keepRunning;
+    pthread_mutex_unlock(&mutexKeepRunning);
+    return value;
+}
+
+void set_keep_running(int value) {
+    pthread_mutex_lock(&mutexKeepRunning);
+    keepRunning = value;
+    pthread_mutex_unlock(&mutexKeepRunning);
+}
+
 // Maneja la se�al para terminar el programa
 void handle_signal(int sig) {
     printf("\nRecibida se�al de terminaci�n. Cerrando broker...\n");
-    keepRunning = 0;
-    // Cerrar el socket para que accept() se libere
+    set_keep_running(0);
     close(server_fd);
 }
 
@@ -154,7 +203,7 @@ void* handle_client(void* socket_desc) {
         recv(client_sock, dummy, 3, 0);  // Consumimos los 3 bytes del "GET"
         printf("Consumer conectado\n");
 
-        while (keepRunning) {
+        while (get_keep_running()) {
             Mensaje mensaje;
             if (dequeue(&colaGlobal, &mensaje) == 0) { //Aquí saca el mensaje de la cola, igual que cuando lo quiere meter en el archivo, hay que juntarlo para que se le hagan las dos operaciones al mismo mensaje.
                 send(client_sock, &mensaje, sizeof(Mensaje), 0);
@@ -170,7 +219,9 @@ void* handle_client(void* socket_desc) {
         // Es un producer
         Mensaje nuevoMensaje;
         while ((read_size = recv(client_sock, &nuevoMensaje, sizeof(Mensaje), 0)) > 0) {
+            nuevoMensaje.id=obtener_id_mensaje();
             printf("Mensaje recibido: %s\n", nuevoMensaje.mensaje);
+            escribir_persister(persisterFile, &nuevoMensaje);
 
             if (enqueue(&colaGlobal, nuevoMensaje) == -1) {
                 printf("Cola llena, mensaje descartado\n");
@@ -190,16 +241,20 @@ void* handle_client(void* socket_desc) {
 
 
 
+
 int main() {
     struct sockaddr_in address;
     int addrlen = sizeof(address);
     pthread_t processor_thread;
+    sem_init(&espacios_disponibles, 0, QUEUE_CAPACITY); // espacios disponibles al inicio
+    sem_init(&mensajes_disponibles, 0, 0);
 
     // Inicializar la cola
     initQueue(&colaGlobal);
 
     // Abrir el archivo de log
     archivoLog = abrir_archivo("archivo.log");
+    persisterFile = abrir_archivo("persistencia.txt");
 
     // Configurar el manejo de se�ales
     signal(SIGINT, handle_signal);
@@ -236,14 +291,11 @@ int main() {
 
     printf("Broker iniciado en puerto %d\n", PORT);
 
-    // Iniciar el hilo procesador de mensajes
-    //pthread_create(&processor_thread, NULL, procesador_mensajes, NULL);
-
     // Aceptar conexiones entrantes
-    while (keepRunning) {
+    while (get_keep_running()) {
         int new_socket;
         if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-            if (!keepRunning) break; // Si se cerr� por la se�al, es normal
+            if (!get_keep_running()) break; // Si se cerr� por la se�al, es normal
             perror("Fallo en accept");
             continue;
         }
@@ -266,10 +318,10 @@ int main() {
         }
     }
 
-    // Esperar a que finalice el hilo procesador
-    pthread_join(processor_thread, NULL);
-
+    cerrar_archivo(persisterFile);
     cerrar_archivo(archivoLog);
+    sem_destroy(&espacios_disponibles);
+    sem_destroy(&mensajes_disponibles);
     close(server_fd);
 
     printf("Broker finalizado\n");
