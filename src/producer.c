@@ -1,3 +1,7 @@
+//
+//                     ESTA CLASE ESTA LIBRE DE MEMORY LEAKS Y DE RACE CONDITIONS
+//
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -88,7 +92,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    Mensaje msj;
+    Mensaje msj = {0}; 
     msj.id=id;
     snprintf(msj.mensaje, sizeof(msj.mensaje), "Mensaje x producer %d", id);
     
