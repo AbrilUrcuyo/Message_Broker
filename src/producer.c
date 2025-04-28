@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
 
     Mensaje msj = {0}; 
     msj.id=id;
-    snprintf(msj.mensaje, sizeof(msj.mensaje), "Mensaje x producer %d", id);
+    snprintf(msj.mensaje, sizeof(msj.mensaje), "Hola soy el producer");
     
 
     if (enviar_mensaje(sock, &msj) == 0) {

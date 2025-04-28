@@ -19,6 +19,7 @@
 #define PORT 8080
 #define MAX_CONNECTIONS 10
 #define QUEUE_CAPACITY 10
+#define MAX_CONSUMERS_GRUPO 2
 
 
 sem_t espacios_disponibles;
@@ -27,8 +28,10 @@ pthread_mutex_t mutexCola = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t persister_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t log_mutex= PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexKeepRunning = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexID = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t consumer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
+//-------------------------CLASES O ESTRUCTURAS ------------------------------
 typedef struct {
     int id;
     char mensaje[MAX_MESSAGE_LENGTH];
@@ -59,11 +62,6 @@ typedef struct {
     int consumer_id_counter;//creo que no se usa
 } ListaGrupos;
 
-ListaGrupos* lista; 
-void inicializar_lista();
-int  registrar_consumer(int socket_fd);
-void* distribuir_a_grupos();
-
 typedef struct NodoMensaje {
     Mensaje mensaje;
     struct NodoMensaje* siguiente;
@@ -74,7 +72,69 @@ typedef struct {
     pthread_mutex_t mutex;
 } ListaMensajes;
 
+typedef struct {
+    Mensaje mensajes[QUEUE_CAPACITY];
+    int front;
+    int rear;
+    int size;
+} ColaCircular;
+
+//----------------------------------------------------------------------------
+//------------------------DECLARACION DE VARIABLES----------------------------
+ListaGrupos* lista;
 ListaMensajes* listaMensajes;
+ColaCircular colaGlobal; //No se si deberian ser locales
+
+
+int contadorMensajes=0;
+int consumers_activos = 0;
+
+FILE* archivoLog;     
+FILE* persisterFile;
+
+int server_fd;
+volatile int keepRunning = 1;
+
+//----------------------------------------------------------------------------
+//-------------------PRE-DECLARACION DE METODDOS------------------------------
+void inicializar_lista();
+void inicializar_lista_mensajes();
+
+//       Mensajes
+void agregar_mensaje(Mensaje mensaje);
+Mensaje obtener_mensaje();
+int obtener_id_mensaje();
+
+//      Consumers
+void consumer_conectado();
+void consumer_desconectado();
+int hay_consumers();
+int  registrar_consumer(int socket_fd);
+//     Cola Circular
+void initQueue(ColaCircular* queue);
+int isFull(ColaCircular* queue);
+int isEmpty(ColaCircular* queue);
+int enqueue(ColaCircular* queue, Mensaje mensaje);
+int dequeue(ColaCircular* queue, Mensaje* mensaje);
+
+
+void* distribuir_a_grupos(void *arg);
+void* handle_client(void* socket_desc);
+int get_keep_running();
+void set_keep_running(int value);
+void handle_signal(int sig);
+
+//      Archivos
+FILE* abrir_archivo(const char* nombre_archivo);
+void escribir_persister(FILE* archivo, Mensaje *mensaje);
+void escribir_log(FILE* archivo, const char* mensaje);
+void cerrar_archivo(FILE* archivo);
+void* escribir_lista_mensajes(void* arg);
+
+//----------------------------------------------------------------------------
+
+
+
 void inicializar_lista_mensajes() {
     listaMensajes = malloc(sizeof(ListaMensajes));
     if (listaMensajes == NULL) {
@@ -83,9 +143,8 @@ void inicializar_lista_mensajes() {
     }
 
     listaMensajes->cabeza = NULL;
-    pthread_mutex_init(&lista->mutex, NULL);
+    pthread_mutex_init(&listaMensajes->mutex, NULL);
 }
-
 void agregar_mensaje(Mensaje mensaje) {
     NodoMensaje* nuevo = malloc(sizeof(NodoMensaje));
     if (nuevo == NULL) {
@@ -100,7 +159,6 @@ void agregar_mensaje(Mensaje mensaje) {
     printf("Mensaje agregado: %s\n", mensaje.mensaje); // Para depuración
     pthread_mutex_unlock(&listaMensajes->mutex);
 }
-
 Mensaje obtener_mensaje() {
     Mensaje mensaje;
     pthread_mutex_lock(&listaMensajes->mutex);
@@ -118,10 +176,6 @@ Mensaje obtener_mensaje() {
     pthread_mutex_unlock(&listaMensajes->mutex);
     return mensaje;
 }
-
-FILE* persisterFile;
-
-//             ESCRIBIR EN PERSISTER
 void escribir_persister(FILE* archivo, Mensaje *mensaje) {
     pthread_mutex_lock(&persister_mutex);
     fprintf(archivo, "[%d]-", mensaje->id); // ID entre corchetes
@@ -129,65 +183,39 @@ void escribir_persister(FILE* archivo, Mensaje *mensaje) {
     fflush(archivo); // Aseguramos que se escriba inmediatamente
     pthread_mutex_unlock(&persister_mutex);
 }
-
-//      ESTO MUTEX ES PARA MANEJAR QUE EL INCREMENTO SE HAGA ADECUDAMENTE
-pthread_mutex_t mutexID = PTHREAD_MUTEX_INITIALIZER;
-int contadorMensajes=0;
-
-//         ASIGNACION DE ID AL MSJ (NO DEPENDE DEL ID DEL PRODUCER)
 int obtener_id_mensaje() {
     pthread_mutex_lock(&mutexID);
     int id = contadorMensajes++;
     pthread_mutex_unlock(&mutexID);
     return id;
 }
-
-// Verificación de consumers activos
-pthread_mutex_t consumer_mutex = PTHREAD_MUTEX_INITIALIZER;
-int consumers_activos = 0;
-
 void consumer_conectado() {
     pthread_mutex_lock(&consumer_mutex);
     consumers_activos++;
     pthread_mutex_unlock(&consumer_mutex);
 }
-
 void consumer_desconectado() {
     pthread_mutex_lock(&consumer_mutex);
     consumers_activos--;
     pthread_mutex_unlock(&consumer_mutex);
 }
-
 int hay_consumers() {
     pthread_mutex_lock(&consumer_mutex);
     int r = consumers_activos;
     pthread_mutex_unlock(&consumer_mutex);
     return r;
 }
-
-
-//       IMPLEMENTACION DE LA COLA CIRCULAR
-typedef struct {
-    Mensaje mensajes[QUEUE_CAPACITY];
-    int front;
-    int rear;
-    int size;
-} ColaCircular;
-
 void initQueue(ColaCircular* queue) {
     queue->front = 0;
     queue->rear = 0;
     queue->size = 0;
 }
-
 int isFull(ColaCircular* queue) {
     return queue->size == QUEUE_CAPACITY;
 }
-
 int isEmpty(ColaCircular* queue) {
     return queue->size == 0;
 }
-
 //Revisar en los capítulos, creo que el manejo de los mutex lo manejaban de manera más eficiente, pero eso puede quedar para el final
 int enqueue(ColaCircular* queue, Mensaje mensaje) {
     sem_wait(&espacios_disponibles);   
@@ -204,16 +232,14 @@ int enqueue(ColaCircular* queue, Mensaje mensaje) {
     queue->rear = (queue->rear + 1) % QUEUE_CAPACITY;
     queue->size++;
 
-    Mensaje log;
-    snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje recibido: %d     ", mensaje.id);
-    agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes 
+    //Mensaje log;
+    //snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje recibido: %d     ", mensaje.id);
+    //agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes 
     
     pthread_mutex_unlock(&mutexCola);  // Desbloquear al finalizar
     sem_post(&mensajes_disponibles); 
     return 0;
 }
-
-
 int dequeue(ColaCircular* queue, Mensaje* mensaje) {
     sem_wait(&mensajes_disponibles);  
     pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
@@ -231,7 +257,6 @@ int dequeue(ColaCircular* queue, Mensaje* mensaje) {
     sem_post(&espacios_disponibles);   
     return 0;
 }
-
 //                    ARCHIVOS .LOG Y PERSISTER 
 FILE* abrir_archivo(const char* nombre_archivo) {
     FILE* archivo = fopen(nombre_archivo, "a");  // Modo "a" para agregar al archivo sin sobrescribir
@@ -252,37 +277,23 @@ void escribir_log(FILE* archivo, const char* mensaje) {
 void cerrar_archivo(FILE* archivo) {
     fclose(archivo);
 }
-//-----------------------------------------------------------------------------------
-
-// Variables Globales
-ColaCircular colaGlobal; //No se si deberian ser locales
-FILE* archivoLog;        //No se si deberian ser locales
-
-int server_fd;
-volatile int keepRunning = 1;
-
 int get_keep_running() {
     pthread_mutex_lock(&mutexKeepRunning);
     int value = keepRunning;
     pthread_mutex_unlock(&mutexKeepRunning);
     return value;
 }
-
 void set_keep_running(int value) {
     pthread_mutex_lock(&mutexKeepRunning);
     keepRunning = value;
     pthread_mutex_unlock(&mutexKeepRunning);
 }
-
 // Maneja la se al para terminar el programa
 void handle_signal(int sig) {
     printf("\nRecibida se al de terminaci n. Cerrando broker...\n");
     set_keep_running(0);
     close(server_fd);
 }
-
-#define MAX_CONSUMERS_GRUPO 2
-
 int registrar_consumer(int socket_fd) {
     pthread_mutex_lock(&lista->mutex);
 
@@ -290,10 +301,11 @@ int registrar_consumer(int socket_fd) {
     while (actual) {
         pthread_mutex_lock(&actual->grupo.mutex);
         if (actual->grupo.count < MAX_CONSUMERS_GRUPO) {
-            actual->grupo.consumidores[actual->grupo.count].id = lista->consumer_id_counter++;
+            // Asignar el ID dentro del grupo basado en el número de consumidores
+            int grupo_id = actual->grupo.id;
+            actual->grupo.consumidores[actual->grupo.count].id = actual->grupo.count;  // ID dentro del grupo
             actual->grupo.consumidores[actual->grupo.count].socket_fd = socket_fd;
             actual->grupo.count++;
-            int grupo_id = actual->grupo.id;
             pthread_mutex_unlock(&actual->grupo.mutex);
             pthread_mutex_unlock(&lista->mutex);
             return grupo_id;
@@ -302,13 +314,13 @@ int registrar_consumer(int socket_fd) {
         actual = actual->siguiente;
     }
 
-    // Crear nuevo grupo
+    // Crear nuevo grupo si no hay espacio
     GrupoNode* nuevo = malloc(sizeof(GrupoNode));
     nuevo->grupo.id = lista->grupo_id_counter++;
     nuevo->grupo.count = 1;
     nuevo->grupo.rr_index = 0;
     pthread_mutex_init(&nuevo->grupo.mutex, NULL);
-    nuevo->grupo.consumidores[0].id = lista->consumer_id_counter++;
+    nuevo->grupo.consumidores[0].id = 0;  // El primer consumidor tiene ID 0 en el nuevo grupo
     nuevo->grupo.consumidores[0].socket_fd = socket_fd;
     nuevo->siguiente = lista->cabeza;
     lista->cabeza = nuevo;
@@ -316,7 +328,6 @@ int registrar_consumer(int socket_fd) {
     pthread_mutex_unlock(&lista->mutex);
     return nuevo->grupo.id;
 }
-
 void inicializar_lista() {
     lista = malloc(sizeof(ListaGrupos));
     if (lista == NULL) {
@@ -328,9 +339,6 @@ void inicializar_lista() {
     lista->consumer_id_counter = 0;
     pthread_mutex_init(&lista->mutex, NULL);
 }
-
-
-
 void* distribuir_a_grupos(void *arg) {
     Mensaje mensaje;
     Mensaje log;
@@ -351,7 +359,7 @@ void* distribuir_a_grupos(void *arg) {
                         // Desconexión o error
                     }
                     printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
-                    snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
+                    snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje ID: %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
                     agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
                     
                     actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
@@ -362,8 +370,7 @@ void* distribuir_a_grupos(void *arg) {
             }
             pthread_mutex_unlock(&lista->mutex);
 
-            // escribir_log(archivoLog, mensaje.mensaje);
-            // printf("Guardado en log: %s\n", mensaje.mensaje);
+        
         } else {
             usleep(100000);  // Espera un poco si la cola está vacía
         }
@@ -439,7 +446,6 @@ void* handle_client(void* socket_desc) {
 
     return NULL;
 }
-
 void* escribir_lista_mensajes(void* arg) {
     while(get_keep_running()) {
         // Esperar a que haya mensajes disponibles
@@ -551,40 +557,6 @@ int main() {
             pthread_detach(client_thread);
         }
     }
-
-    //REVISAR QUE SE ESPERE A QUE TERMINEN LOS HILOS ANTES DE CERRAR EL BROKER PTHREAD_JOIN
-    // Crear una lista para almacenar los identificadores de los hilos de clientes
-    // pthread_t client_threads[MAX_CONNECTIONS];
-    // int thread_count = 0;
-
-    // // Aceptar conexiones entrantes
-    // while (get_keep_running()) {
-    //     int new_socket;
-    //     if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-    //         if (!get_keep_running()) break; // Si se cerró por la señal, es normal
-    //         perror("Fallo en accept");
-    //         continue;
-    //     }
-
-    //     printf("Nueva conexión aceptada\n");
-
-    //     // Crear un hilo para manejar al cliente
-    //     int* client_sock = malloc(sizeof(int));
-    //     *client_sock = new_socket;
-
-    //     if (pthread_create(&client_threads[thread_count], NULL, handle_client, (void*)client_sock) < 0) {
-    //         perror("No se pudo crear el hilo");
-    //         close(new_socket);
-    //         free(client_sock);
-    //     } else {
-    //         thread_count++;
-    //     }
-    // }
-
-    // // Esperar a que terminen todos los hilos de clientes
-    // for (int i = 0; i < thread_count; i++) {
-    //     pthread_join(client_threads[i], NULL);
-    // }
 
     // Esperar a que terminen los hilos de log y mensajes
     pthread_join(log_thread, NULL);
