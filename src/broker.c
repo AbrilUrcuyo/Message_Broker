@@ -110,6 +110,7 @@ void consumer_conectado();
 void consumer_desconectado();
 int hay_consumers();
 int  registrar_consumer(int socket_fd);
+void eliminar_consumer(int socket_fd);
 //     Cola Circular
 void initQueue(ColaCircular* queue);
 int isFull(ColaCircular* queue);
@@ -307,6 +308,7 @@ int registrar_consumer(int socket_fd) {
             actual->grupo.consumidores[actual->grupo.count].socket_fd = socket_fd;
             actual->grupo.count++;
             pthread_mutex_unlock(&actual->grupo.mutex);
+            consumer_conectado(); 
             pthread_mutex_unlock(&lista->mutex);
             return grupo_id;
         }
@@ -325,8 +327,49 @@ int registrar_consumer(int socket_fd) {
     nuevo->siguiente = lista->cabeza;
     lista->cabeza = nuevo;
 
+    consumer_conectado(); 
     pthread_mutex_unlock(&lista->mutex);
+    
     return nuevo->grupo.id;
+}
+void eliminar_consumer(int socket_fd) {
+    pthread_mutex_lock(&lista->mutex);
+
+    GrupoNode* actual = lista->cabeza;
+    while (actual) {
+        pthread_mutex_lock(&actual->grupo.mutex);
+
+        for (int i = 0; i < actual->grupo.count; i++) {
+            if (actual->grupo.consumidores[i].socket_fd == socket_fd) {
+                // Desplazar los consumidores restantes para llenar el hueco
+                for (int j = i; j < actual->grupo.count - 1; j++) {
+                    actual->grupo.consumidores[j] = actual->grupo.consumidores[j + 1];
+                }
+                actual->grupo.count--; // Reducir el contador de consumidores
+
+                // --- AJUSTE DE rr_index ---
+                if (actual->grupo.count == 0) {
+                    actual->grupo.rr_index = 0;
+                } else if (actual->grupo.rr_index > i) {
+                    actual->grupo.rr_index--;
+                } else if (actual->grupo.rr_index >= actual->grupo.count) {
+                    actual->grupo.rr_index = 0;
+                }
+                // --------------------------
+
+                printf("Consumer eliminado del grupo %d\n", actual->grupo.id);
+                
+                pthread_mutex_unlock(&actual->grupo.mutex);
+                consumer_desconectado();
+                pthread_mutex_unlock(&lista->mutex);
+                return;
+            }
+        }
+        
+        pthread_mutex_unlock(&actual->grupo.mutex);
+        actual = actual->siguiente;
+    }
+    pthread_mutex_unlock(&lista->mutex);
 }
 void inicializar_lista() {
     lista = malloc(sizeof(ListaGrupos));
@@ -345,34 +388,37 @@ void* distribuir_a_grupos(void *arg) {
     while(get_keep_running()) {
         // Esperar a que haya mensajes disponibles
         //sem_wait(&mensajes_disponibles);
-
-        if (dequeue(&colaGlobal, &mensaje) == 0) { 
-            pthread_mutex_lock(&lista->mutex);
-            GrupoNode* actual = lista->cabeza;
-            while (actual) {
-                pthread_mutex_lock(&actual->grupo.mutex);
-
-                if (actual->grupo.count > 0) {
-                    int idx = actual->grupo.rr_index % actual->grupo.count;
-                    int fd = actual->grupo.consumidores[idx].socket_fd;
-                    if (send(fd, &mensaje, sizeof(Mensaje), MSG_NOSIGNAL) <= 0) {
-                        // Desconexión o error
+        if(hay_consumers() > 0){
+            if (dequeue(&colaGlobal, &mensaje) == 0) { 
+                pthread_mutex_lock(&lista->mutex);
+                GrupoNode* actual = lista->cabeza;
+                while (actual) {
+                    pthread_mutex_lock(&actual->grupo.mutex);
+    
+                    if (actual->grupo.count > 0) {
+                        int idx = actual->grupo.rr_index % actual->grupo.count;
+                        int fd = actual->grupo.consumidores[idx].socket_fd;
+                        if (send(fd, &mensaje, sizeof(Mensaje), MSG_NOSIGNAL) <= 0) {
+                            eliminar_consumer(fd); // Eliminar el consumidor si no se pudo enviar el mensaje
+                            enqueue(&colaGlobal, mensaje); // Reenviar el mensaje a la cola si no se pudo enviar
+                            printf("Error al enviar mensaje al consumer %d\n", actual->grupo.consumidores[idx].id);
+                        }
+                        printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
+                        snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje ID: %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
+                        agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
+                        
+                        actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
                     }
-                    printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
-                    snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje ID: %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
-                    agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
-                    
-                    actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
+    
+                    pthread_mutex_unlock(&actual->grupo.mutex);
+                    actual = actual->siguiente;
                 }
-
-                pthread_mutex_unlock(&actual->grupo.mutex);
-                actual = actual->siguiente;
+                pthread_mutex_unlock(&lista->mutex);
+    
+            
+            } else {
+                usleep(100000);  // Espera un poco si la cola está vacía
             }
-            pthread_mutex_unlock(&lista->mutex);
-
-        
-        } else {
-            usleep(100000);  // Espera un poco si la cola está vacía
         }
     }
     return NULL;
@@ -397,32 +443,23 @@ void* handle_client(void* socket_desc) {
         // Es un consumer
         char dummy[4];
         recv(client_sock, dummy, 3, 0);  // Consumimos los 3 bytes del "GET"
-        //consumer_conectado();  // Aumentar el contador de consumers activos
         printf("Consumer conectado\n");
 
         int grupo_id = registrar_consumer(client_sock);
+       
         printf("Consumer registrado en grupo %d\n", grupo_id);
 
-        // while (get_keep_running()) {
-        //     Mensaje mensaje;
+        while (get_keep_running()) {
+            Mensaje mensaje;
+            if (recv(client_sock, &mensaje, sizeof(Mensaje), MSG_PEEK) <= 0) {
+                printf("Consumer desconectado\n");
+                eliminar_consumer(client_sock); // Eliminar el consumidor del grupo
+                break;
+            }
+            usleep(100000); // Simulación de espera
+        }
 
-        //     // if (send(client_sock, &mensaje, sizeof(Mensaje), MSG_NOSIGNAL) <= 0) {
-        //     //     printf("Consumer desconectado\n");
-        //     //     break;  // Salir del bucle si el socket está cerrado
-        //     // }
-
-        //     if (dequeue(&colaGlobal, &mensaje) == 0) { 
-        //         send(client_sock, &mensaje, sizeof(Mensaje), 0);
-        //         printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
-        //         escribir_log(archivoLog, mensaje.mensaje);
-        //         printf("Guardado en log: %s\n", mensaje.mensaje);
-        //     } else {
-        //         usleep(100000);  // Espera un poco si la cola está vacía
-        //     }
-        // }
-
-        //consumer_desconectado();  // Disminuir el contador de consumers activos
-
+        close(client_sock);
     } else {
         // Es un producer
         Mensaje nuevoMensaje;
