@@ -30,6 +30,7 @@ pthread_mutex_t log_mutex= PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexKeepRunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexID = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t consumer_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t consumers_cond = PTHREAD_COND_INITIALIZER; // Condición para consumidores disponibles
 
 //-------------------------CLASES O ESTRUCTURAS ------------------------------
 typedef struct {
@@ -193,6 +194,7 @@ int obtener_id_mensaje() {
 void consumer_conectado() {
     pthread_mutex_lock(&consumer_mutex);
     consumers_activos++;
+    pthread_cond_signal(&consumers_cond); // Notificar a los hilos que esperan consumidores
     pthread_mutex_unlock(&consumer_mutex);
 }
 void consumer_desconectado() {
@@ -243,10 +245,17 @@ int enqueue(ColaCircular* queue, Mensaje mensaje) {
 }
 int dequeue(ColaCircular* queue, Mensaje* mensaje) {
     sem_wait(&mensajes_disponibles);  
-    pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
+    pthread_mutex_lock(&consumer_mutex);
+        while (consumers_activos == 0) {
+            pthread_cond_wait(&consumers_cond, &consumer_mutex); // Esperar a que haya consumidores
+        }
+    pthread_mutex_unlock(&consumer_mutex);
 
-    if (queue->size == 0) {
+    pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
+    if (queue->size == 0 || hay_consumers() == 0) {
+        printf("Cola vacía o no hay consumidores\n");
         pthread_mutex_unlock(&mutexCola);  // Desbloquear antes de salir
+        sem_post(&mensajes_disponibles); 
         return -1; // Cola vacía
     }
 
@@ -260,7 +269,14 @@ int dequeue(ColaCircular* queue, Mensaje* mensaje) {
 }
 //                    ARCHIVOS .LOG Y PERSISTER 
 FILE* abrir_archivo(const char* nombre_archivo) {
-    FILE* archivo = fopen(nombre_archivo, "a");  // Modo "a" para agregar al archivo sin sobrescribir
+    FILE* archivo = fopen(nombre_archivo, "w");//Abrimos en modo "w" para crear el archivo o sobrescribirlo
+    if (archivo == NULL) {
+        perror("No se pudo abrir el archivo");
+        exit(1);  // Termina el programa si no puede abrir el archivo
+    }
+    fclose(archivo); // Cerrar el archivo inmediatamente para asegurarnos de que se cree
+
+    archivo = fopen(nombre_archivo, "a");  // Modo "a" para agregar al archivo sin sobrescribir
     if (archivo == NULL) {
         perror("No se pudo abrir el archivo");
         exit(1);  // Termina el programa si no puede abrir el archivo
@@ -289,7 +305,7 @@ void set_keep_running(int value) {
     keepRunning = value;
     pthread_mutex_unlock(&mutexKeepRunning);
 }
-// Maneja la se al para terminar el programa
+// Maneja la señal para terminar el programa
 void handle_signal(int sig) {
     printf("\nRecibida se al de terminaci n. Cerrando broker...\n");
     set_keep_running(0);
@@ -385,40 +401,39 @@ void inicializar_lista() {
 void* distribuir_a_grupos(void *arg) {
     Mensaje mensaje;
     Mensaje log;
-    while(get_keep_running()) {
-        // Esperar a que haya mensajes disponibles
-        //sem_wait(&mensajes_disponibles);
-        if(hay_consumers() > 0){
-            if (dequeue(&colaGlobal, &mensaje) == 0) { 
-                pthread_mutex_lock(&lista->mutex);
-                GrupoNode* actual = lista->cabeza;
-                while (actual) {
-                    pthread_mutex_lock(&actual->grupo.mutex);
-    
-                    if (actual->grupo.count > 0) {
-                        int idx = actual->grupo.rr_index % actual->grupo.count;
-                        int fd = actual->grupo.consumidores[idx].socket_fd;
-                        if (send(fd, &mensaje, sizeof(Mensaje), MSG_NOSIGNAL) <= 0) {
-                            eliminar_consumer(fd); // Eliminar el consumidor si no se pudo enviar el mensaje
-                            enqueue(&colaGlobal, mensaje); // Reenviar el mensaje a la cola si no se pudo enviar
-                            printf("Error al enviar mensaje al consumer %d\n", actual->grupo.consumidores[idx].id);
-                        }
-                        printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
-                        snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje ID: %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
-                        agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
-                        
-                        actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
+    while (get_keep_running()) {
+        pthread_mutex_lock(&consumer_mutex);
+        while (consumers_activos == 0) {
+            pthread_cond_wait(&consumers_cond, &consumer_mutex); // Esperar a que haya consumidores
+        }
+        pthread_mutex_unlock(&consumer_mutex);
+
+        if (dequeue(&colaGlobal, &mensaje) == 0) {
+            printf("Mensaje recibido de la cola: %s\n", mensaje.mensaje); // Para depuración
+            pthread_mutex_lock(&lista->mutex);
+            GrupoNode* actual = lista->cabeza;
+            while (actual) {
+                pthread_mutex_lock(&actual->grupo.mutex);
+                if (actual->grupo.count > 0) {
+                    int idx = actual->grupo.rr_index % actual->grupo.count;
+                    int fd = actual->grupo.consumidores[idx].socket_fd;
+                    if (send(fd, &mensaje, sizeof(Mensaje), MSG_NOSIGNAL) <= 0) {
+                        eliminar_consumer(fd); // Eliminar el consumidor si no se pudo enviar el mensaje
+                        enqueue(&colaGlobal, mensaje); // Reenviar el mensaje a la cola si no se pudo enviar
+                        printf("Error al enviar mensaje al consumer %d\n", actual->grupo.consumidores[idx].id);
                     }
-    
-                    pthread_mutex_unlock(&actual->grupo.mutex);
-                    actual = actual->siguiente;
+                    printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
+                    snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje ID: %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
+                    agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
+                    
+                    actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
                 }
-                pthread_mutex_unlock(&lista->mutex);
-    
-            
-            } else {
-                usleep(100000);  // Espera un poco si la cola está vacía
+                pthread_mutex_unlock(&actual->grupo.mutex);
+                actual = actual->siguiente;
             }
+            pthread_mutex_unlock(&lista->mutex);
+        } else {
+            usleep(100000);  // Espera un poco si la cola está vacía
         }
     }
     return NULL;
