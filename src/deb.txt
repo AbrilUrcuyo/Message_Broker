@@ -1,0 +1,774 @@
+Broker iniciado en puerto 8080
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Producer desconectado
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Mensaje recibido: Hola soy el producer
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Nueva conexion aceptada
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Nueva conexion aceptada
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Mensaje recibido: Hola soy el producer
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+Producer desconectado
+
+Recibida se al de terminaci n. Cerrando broker...
+Broker finalizado
