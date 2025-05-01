@@ -17,10 +17,11 @@
 
 #define MAX_MESSAGE_LENGTH 256
 #define PORT 8080
-#define MAX_CONNECTIONS 10
-#define QUEUE_CAPACITY 10
-#define MAX_CONSUMERS_GRUPO 2
-
+#define MAX_CONNECTIONS 100
+#define QUEUE_CAPACITY 100
+#define MAX_CONSUMERS_GRUPO 5
+#define MAX_TAREAS 200
+#define NUM_HILOS 20
 
 sem_t espacios_disponibles;
 sem_t mensajes_disponibles;
@@ -80,6 +81,17 @@ typedef struct {
     int size;
 } ColaCircular;
 
+typedef struct {
+    int client_socket;
+} Tarea;
+
+typedef struct {
+    Tarea tareas[MAX_TAREAS];
+    int front, rear, size;
+    pthread_mutex_t mutex;
+    sem_t tareas_disponibles;
+} ColaTareas;
+
 //----------------------------------------------------------------------------
 //------------------------DECLARACION DE VARIABLES----------------------------
 ListaGrupos* lista;
@@ -95,6 +107,8 @@ FILE* persisterFile;
 
 int server_fd;
 volatile int keepRunning = 1;
+
+ColaTareas cola_tareas;
 
 //----------------------------------------------------------------------------
 //-------------------PRE-DECLARACION DE METODDOS------------------------------
@@ -112,6 +126,7 @@ void consumer_desconectado();
 int hay_consumers();
 int  registrar_consumer(int socket_fd);
 void eliminar_consumer(int socket_fd);
+void* manejar_consumer(void* socket_desc);
 //     Cola Circular
 void initQueue(ColaCircular* queue);
 int isFull(ColaCircular* queue);
@@ -125,6 +140,7 @@ void* handle_client(void* socket_desc);
 int get_keep_running();
 void set_keep_running(int value);
 void handle_signal(int sig);
+void manejar_producer(int client_sock);
 
 //      Archivos
 FILE* abrir_archivo(const char* nombre_archivo);
@@ -132,6 +148,12 @@ void escribir_persister(FILE* archivo, Mensaje *mensaje);
 void escribir_log(FILE* archivo, const char* mensaje);
 void cerrar_archivo(FILE* archivo);
 void* escribir_lista_mensajes(void* arg);
+
+//      Thread Pool
+void init_cola_tareas(ColaTareas* cola);
+void agregar_tarea(ColaTareas* cola, Tarea tarea);
+Tarea tomar_tarea(ColaTareas* cola);
+void* trabajador(void* arg);
 
 //----------------------------------------------------------------------------
 
@@ -221,6 +243,9 @@ int isEmpty(ColaCircular* queue) {
 }
 //Revisar en los capítulos, creo que el manejo de los mutex lo manejaban de manera más eficiente, pero eso puede quedar para el final
 int enqueue(ColaCircular* queue, Mensaje mensaje) {
+    while (isFull(queue)) {
+        usleep(1000); // Esperar un poco antes de intentar nuevamente
+    }
     sem_wait(&espacios_disponibles);   
     pthread_mutex_lock(&mutexCola);  // Bloquear el mutex al comenzar
 
@@ -444,7 +469,7 @@ void* distribuir_a_grupos(void *arg) {
 //Para el consumer se puede aprovechar el procesador de mensajes.
 void* handle_client(void* socket_desc) {
     int client_sock = *(int*)socket_desc;
-    free(socket_desc);
+   // free(socket_desc);
 
     char tipo[4] = {0};  // Buffer para verificar si es "GET"
 
@@ -456,7 +481,26 @@ void* handle_client(void* socket_desc) {
 
     if (strncmp(tipo, "GET", 3) == 0) {
         // Es un consumer
-        char dummy[4];
+        // consumer → hilo dedicado
+        pthread_t hilo_consumer;
+        int* socket_cpy = malloc(sizeof(int));
+        *socket_cpy = client_sock;
+        pthread_create(&hilo_consumer, NULL, manejar_consumer, socket_cpy);
+        pthread_detach(hilo_consumer);  // o podés guardarlos si querés join al final
+    } else {
+        // Es un producer
+        // producer → manejar directamente aquí
+        manejar_producer(client_sock);
+    }
+
+    return NULL;
+}
+
+void* manejar_consumer(void* socket_desc) {
+    int client_sock = *(int*)socket_desc;
+    free(socket_desc);
+    // ... tu lógica actual del consumer
+    char dummy[4];
         recv(client_sock, dummy, 3, 0);  // Consumimos los 3 bytes del "GET"
         printf("Consumer conectado\n");
 
@@ -475,9 +519,13 @@ void* handle_client(void* socket_desc) {
         }
 
         close(client_sock);
-    } else {
-        // Es un producer
-        Mensaje nuevoMensaje;
+    return NULL;
+}
+
+void manejar_producer(int client_sock) {
+    // ... tu lógica actual del producer
+    Mensaje nuevoMensaje;
+    int read_size; 
         while ((read_size = recv(client_sock, &nuevoMensaje, sizeof(Mensaje), 0)) > 0) {
             // nuevoMensaje.id=obtener_id_mensaje();
             printf("Mensaje recibido: %s\n", nuevoMensaje.mensaje);
@@ -494,9 +542,6 @@ void* handle_client(void* socket_desc) {
             perror("Error en recv");
         }
         close(client_sock);
-    }
-
-    return NULL;
 }
 void* escribir_lista_mensajes(void* arg) {
     while(get_keep_running()) {
@@ -509,6 +554,39 @@ void* escribir_lista_mensajes(void* arg) {
             printf("Mensaje escrito en log: %s\n", mensaje.mensaje); // Para depuración
         }
 
+    }
+    return NULL;
+}
+
+void init_cola_tareas(ColaTareas* cola) {
+    cola->front = cola->rear = cola->size = 0;
+    pthread_mutex_init(&cola->mutex, NULL);
+    sem_init(&cola->tareas_disponibles, 0, 0);
+}
+void agregar_tarea(ColaTareas* cola, Tarea tarea) {
+    pthread_mutex_lock(&cola->mutex);
+    if (cola->size < MAX_TAREAS) {
+        cola->tareas[cola->rear] = tarea;
+        cola->rear = (cola->rear + 1) % MAX_TAREAS;
+        cola->size++;
+        sem_post(&cola->tareas_disponibles);
+    }
+    pthread_mutex_unlock(&cola->mutex);
+}
+
+Tarea tomar_tarea(ColaTareas* cola) {
+    sem_wait(&cola->tareas_disponibles);
+    pthread_mutex_lock(&cola->mutex);
+    Tarea tarea = cola->tareas[cola->front];
+    cola->front = (cola->front + 1) % MAX_TAREAS;
+    cola->size--;
+    pthread_mutex_unlock(&cola->mutex);
+    return tarea;
+}
+void* trabajador(void* arg) {
+    while (get_keep_running()) {
+        Tarea tarea = tomar_tarea(&cola_tareas);
+        handle_client((void*)&tarea.client_socket);  // Ya está definida en tu código
     }
     return NULL;
 }
@@ -563,6 +641,13 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    pthread_t pool[NUM_HILOS];
+    init_cola_tareas(&cola_tareas);
+
+    for (int i = 0; i < NUM_HILOS; i++) {
+        pthread_create(&pool[i], NULL, trabajador, NULL);
+     }
+
     printf("Broker iniciado en puerto %d\n", PORT);
 
     pthread_t log_thread;
@@ -594,20 +679,34 @@ int main() {
 
         printf("Nueva conexi n aceptada\n");
 
-        // Crear un hilo para manejar al cliente
-        pthread_t client_thread;
         int* client_sock = malloc(sizeof(int));
         *client_sock = new_socket;
-
-        if (pthread_create(&client_thread, NULL, handle_client, (void*)client_sock) < 0) { //REVISAR QUE SE ESPERE A QUE TERMINEN LOS HILOS ANTES DE CERRAR EL BROKER
-            perror("No se pudo crear el hilo");
+        
+        // Revisar el tipo de cliente
+        char tipo[4] = {0};
+        int read_size = recv(new_socket, tipo, 3, MSG_PEEK);
+        if (read_size <= 0) {
             close(new_socket);
             free(client_sock);
+            continue;
         }
-        else {
-            // Desvincular el hilo para que se limpie autom ticamente
-            pthread_detach(client_thread);
+        
+        if (strncmp(tipo, "GET", 3) == 0) {
+            // Es un consumer → hilo dedicado
+            pthread_t consumer_thread;
+            if (pthread_create(&consumer_thread, NULL, manejar_consumer, client_sock) < 0) {
+                perror("No se pudo crear hilo para consumer");
+                close(new_socket);
+                free(client_sock);
+            } else {
+                pthread_detach(consumer_thread);
+            }
+        } else {
+            // Es un producer → tarea para el thread pool
+            Tarea tarea = { .client_socket = new_socket };
+            agregar_tarea(&cola_tareas, tarea);
         }
+        
     }
 
     // Esperar a que terminen los hilos de log y mensajes
