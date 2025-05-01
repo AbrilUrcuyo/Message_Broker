@@ -20,7 +20,7 @@
 #define MAX_CONNECTIONS 100
 #define QUEUE_CAPACITY 100
 #define MAX_CONSUMERS_GRUPO 5
-#define MAX_TAREAS 200
+#define MAX_TAREAS 150
 #define NUM_HILOS 20
 
 sem_t espacios_disponibles;
@@ -50,6 +50,7 @@ typedef struct {
     int count;               // Cantidad actual de consumidores
     int rr_index;            // Round robin
     pthread_mutex_t mutex;
+    int offset;   // <-- Nuevo campo para el offset (id del último mensaje)
 } ConsumerGroup;
 
 typedef struct GrupoNode {
@@ -136,7 +137,7 @@ int dequeue(ColaCircular* queue, Mensaje* mensaje);
 
 
 void* distribuir_a_grupos(void *arg);
-void* handle_client(void* socket_desc);
+void* handle_client(int* socket_desc);
 int get_keep_running();
 void set_keep_running(int value);
 void handle_signal(int sig);
@@ -180,7 +181,7 @@ void agregar_mensaje(Mensaje mensaje) {
     nuevo->mensaje = mensaje; // Copiar el mensaje
     nuevo->siguiente = listaMensajes->cabeza;
     listaMensajes->cabeza = nuevo;
-    printf("Mensaje agregado: %s\n", mensaje.mensaje); // Para depuración
+    //printf("Mensaje agregado: %s\n", mensaje.mensaje); // Para depuración
     pthread_mutex_unlock(&listaMensajes->mutex);
 }
 Mensaje obtener_mensaje() {
@@ -236,10 +237,16 @@ void initQueue(ColaCircular* queue) {
     queue->size = 0;
 }
 int isFull(ColaCircular* queue) {
-    return queue->size == QUEUE_CAPACITY;
+    pthread_mutex_lock(&mutexCola);
+    int resultado = queue->size == QUEUE_CAPACITY;
+    pthread_mutex_unlock(&mutexCola);
+    return resultado;
 }
 int isEmpty(ColaCircular* queue) {
-    return queue->size == 0;
+    pthread_mutex_lock(&mutexCola);
+    int resultado = queue->size == 0;
+    pthread_mutex_unlock(&mutexCola);
+    return resultado;
 }
 //Revisar en los capítulos, creo que el manejo de los mutex lo manejaban de manera más eficiente, pero eso puede quedar para el final
 int enqueue(ColaCircular* queue, Mensaje mensaje) {
@@ -333,6 +340,15 @@ void set_keep_running(int value) {
 // Maneja la señal para terminar el programa
 void handle_signal(int sig) {
     printf("\nRecibida se al de terminaci n. Cerrando broker...\n");
+    pthread_mutex_lock(&lista->mutex);
+        GrupoNode* actual = lista->cabeza;
+        while (actual) {
+            pthread_mutex_lock(&actual->grupo.mutex);
+            printf("Offset del grupo %d: %d\n", actual->grupo.id, actual->grupo.offset); // Imprimir el offset de cada grupo
+            pthread_mutex_unlock(&actual->grupo.mutex);
+            actual = actual->siguiente;
+        }
+        pthread_mutex_unlock(&lista->mutex);
     set_keep_running(0);
     close(server_fd);
 }
@@ -398,7 +414,7 @@ void eliminar_consumer(int socket_fd) {
                 }
                 // --------------------------
 
-                printf("Consumer eliminado del grupo %d\n", actual->grupo.id);
+                //printf("Consumer eliminado del grupo %d\n", actual->grupo.id);
                 
                 pthread_mutex_unlock(&actual->grupo.mutex);
                 consumer_desconectado();
@@ -434,7 +450,7 @@ void* distribuir_a_grupos(void *arg) {
         pthread_mutex_unlock(&consumer_mutex);
 
         if (dequeue(&colaGlobal, &mensaje) == 0) {
-            printf("Mensaje recibido de la cola: %s\n", mensaje.mensaje); // Para depuración
+            //printf("Mensaje recibido de la cola: %s\n", mensaje.mensaje); // Para depuración
             pthread_mutex_lock(&lista->mutex);
             GrupoNode* actual = lista->cabeza;
             while (actual) {
@@ -445,12 +461,14 @@ void* distribuir_a_grupos(void *arg) {
                     if (send(fd, &mensaje, sizeof(Mensaje), MSG_NOSIGNAL) <= 0) {
                         eliminar_consumer(fd); // Eliminar el consumidor si no se pudo enviar el mensaje
                         enqueue(&colaGlobal, mensaje); // Reenviar el mensaje a la cola si no se pudo enviar
-                        printf("Error al enviar mensaje al consumer %d\n", actual->grupo.consumidores[idx].id);
+                        //printf("Error al enviar mensaje al consumer %d\n", actual->grupo.consumidores[idx].id);
                     }
-                    printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
+                    //printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
                     snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje ID: %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
                     agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
                     
+                    actual->grupo.offset = mensaje.id; // <-- Guarda el id del último mensaje enviado
+
                     actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
                 }
                 pthread_mutex_unlock(&actual->grupo.mutex);
@@ -467,32 +485,34 @@ void* distribuir_a_grupos(void *arg) {
 // Maneja la conexi n con un cliente
 //Es mejor separarlo, hacer dos funciones, una para el consumer y otra para el producer y llamarlas aquí. 
 //Para el consumer se puede aprovechar el procesador de mensajes.
-void* handle_client(void* socket_desc) {
+void* handle_client(int* socket_desc) {
     int client_sock = *(int*)socket_desc;
-   // free(socket_desc);
 
-    char tipo[4] = {0};  // Buffer para verificar si es "GET"
-
-    int read_size = recv(client_sock, tipo, 3, MSG_PEEK);  // Leer sin consumir
+    // Revisar el tipo de cliente
+    char tipo[4] = {0};
+    int read_size = recv(client_sock, tipo, 3, MSG_PEEK);
     if (read_size <= 0) {
         close(client_sock);
-        return NULL;
+        free(socket_desc); // <-- Aquí sí liberas el puntero
+        return NULL; // Error o desconexion
     }
-
+    
     if (strncmp(tipo, "GET", 3) == 0) {
-        // Es un consumer
-        // consumer → hilo dedicado
-        pthread_t hilo_consumer;
-        int* socket_cpy = malloc(sizeof(int));
-        *socket_cpy = client_sock;
-        pthread_create(&hilo_consumer, NULL, manejar_consumer, socket_cpy);
-        pthread_detach(hilo_consumer);  // o podés guardarlos si querés join al final
+        // Es un consumer → hilo dedicado
+        pthread_t consumer_thread;
+        if (pthread_create(&consumer_thread, NULL, manejar_consumer, socket_desc) < 0) {
+            perror("No se pudo crear hilo para consumer");
+            close(client_sock);
+            free(socket_desc);
+        } else {
+            pthread_detach(consumer_thread);
+        }
     } else {
-        // Es un producer
-        // producer → manejar directamente aquí
-        manejar_producer(client_sock);
+        // Es un producer → tarea para el thread pool
+        Tarea tarea = { .client_socket = client_sock };
+        agregar_tarea(&cola_tareas, tarea);
+        free(socket_desc); // <-- Libera aquí si no es consumer
     }
-
     return NULL;
 }
 
@@ -502,16 +522,16 @@ void* manejar_consumer(void* socket_desc) {
     // ... tu lógica actual del consumer
     char dummy[4];
         recv(client_sock, dummy, 3, 0);  // Consumimos los 3 bytes del "GET"
-        printf("Consumer conectado\n");
+        //printf("Consumer conectado\n");
 
         int grupo_id = registrar_consumer(client_sock);
        
-        printf("Consumer registrado en grupo %d\n", grupo_id);
+        //printf("Consumer registrado en grupo %d\n", grupo_id);
 
         while (get_keep_running()) {
             Mensaje mensaje;
             if (recv(client_sock, &mensaje, sizeof(Mensaje), MSG_PEEK) <= 0) {
-                printf("Consumer desconectado\n");
+                //printf("Consumer desconectado\n");
                 eliminar_consumer(client_sock); // Eliminar el consumidor del grupo
                 break;
             }
@@ -551,7 +571,7 @@ void* escribir_lista_mensajes(void* arg) {
         Mensaje mensaje = obtener_mensaje();
         if (mensaje.id != -1) {
             escribir_log(archivoLog, mensaje.mensaje); // Escribir en el archivo de persistencia
-            printf("Mensaje escrito en log: %s\n", mensaje.mensaje); // Para depuración
+            //printf("Mensaje escrito en log: %s\n", mensaje.mensaje); // Para depuración
         }
 
     }
@@ -586,7 +606,7 @@ Tarea tomar_tarea(ColaTareas* cola) {
 void* trabajador(void* arg) {
     while (get_keep_running()) {
         Tarea tarea = tomar_tarea(&cola_tareas);
-        handle_client((void*)&tarea.client_socket);  // Ya está definida en tu código
+        manejar_producer(tarea.client_socket);  // Ya está definida en tu código
     }
     return NULL;
 }
@@ -646,7 +666,7 @@ int main() {
 
     for (int i = 0; i < NUM_HILOS; i++) {
         pthread_create(&pool[i], NULL, trabajador, NULL);
-     }
+    }
 
     printf("Broker iniciado en puerto %d\n", PORT);
 
@@ -672,46 +692,22 @@ int main() {
     while (get_keep_running()) {
         int new_socket;
         if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-            if (!get_keep_running()) break; // Si se cerr  por la se al, es normal
-            perror("Fallo en accept");
+            if (!get_keep_running()) break; // Si se cerr  por la señal, es normal
+            printf("Fallo en accept");
             continue;
         }
 
-        printf("Nueva conexi n aceptada\n");
+        printf("Nueva conexion aceptada\n");
 
         int* client_sock = malloc(sizeof(int));
         *client_sock = new_socket;
-        
-        // Revisar el tipo de cliente
-        char tipo[4] = {0};
-        int read_size = recv(new_socket, tipo, 3, MSG_PEEK);
-        if (read_size <= 0) {
-            close(new_socket);
-            free(client_sock);
-            continue;
-        }
-        
-        if (strncmp(tipo, "GET", 3) == 0) {
-            // Es un consumer → hilo dedicado
-            pthread_t consumer_thread;
-            if (pthread_create(&consumer_thread, NULL, manejar_consumer, client_sock) < 0) {
-                perror("No se pudo crear hilo para consumer");
-                close(new_socket);
-                free(client_sock);
-            } else {
-                pthread_detach(consumer_thread);
-            }
-        } else {
-            // Es un producer → tarea para el thread pool
-            Tarea tarea = { .client_socket = new_socket };
-            agregar_tarea(&cola_tareas, tarea);
-        }
+        handle_client(client_sock); // Manejar el cliente en un nuevo hilo
         
     }
 
     // Esperar a que terminen los hilos de log y mensajes
-    pthread_join(log_thread, NULL);
-    pthread_join(mensajes_thread, NULL);
+    // pthread_join(log_thread, NULL);
+    // pthread_join(mensajes_thread, NULL);
 
     cerrar_archivo(persisterFile);
     cerrar_archivo(archivoLog);
