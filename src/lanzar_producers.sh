@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Número de productores que querés lanzar
-NUM_PRODUCERS=7500
+NUM_PRODUCERS=3
 
 # Ruta al ejecutable de tu producer
 PRODUCER_EXEC=./producer  # Cambiá el nombre si tu ejecutable se llama diferente

@@ -46,7 +46,7 @@ typedef struct {
 
 typedef struct {
     int id;
-    Consumer consumidores[5];
+    Consumer consumidores[MAX_CONSUMERS_GRUPO]; // <-- Cambia 5 por MAX_CONSUMERS_GRUPO
     int count;               // Cantidad actual de consumidores
     int rr_index;            // Round robin
     pthread_mutex_t mutex;
@@ -433,7 +433,7 @@ int registrar_consumer(int socket_fd) {
     }
 
     // Crear nuevo grupo si no hay espacio
-    GrupoNode* nuevo = malloc(sizeof(GrupoNode));
+    GrupoNode* nuevo = calloc(1, sizeof(GrupoNode));
     nuevo->grupo.id = lista->grupo_id_counter++;
     nuevo->grupo.count = 1;
     nuevo->grupo.rr_index = 0;
@@ -475,6 +475,23 @@ void eliminar_consumer(int socket_fd) {
 
                 printf("Consumer eliminado del grupo %d\n", actual->grupo.id);
                 
+                if (actual->grupo.count == 0) {
+                    // Eliminar el grupo de la lista
+                    if (lista->cabeza == actual) {
+                        lista->cabeza = actual->siguiente;
+                    } else {
+                        GrupoNode* prev = lista->cabeza;
+                        while (prev && prev->siguiente != actual) prev = prev->siguiente;
+                        if (prev) prev->siguiente = actual->siguiente;
+                    }
+                    pthread_mutex_unlock(&actual->grupo.mutex);
+                    pthread_mutex_destroy(&actual->grupo.mutex);
+                    free(actual);
+                    consumer_desconectado();
+                    pthread_mutex_unlock(&lista->mutex);
+                    return;
+                }
+
                 pthread_mutex_unlock(&actual->grupo.mutex);
                 consumer_desconectado();
                 pthread_mutex_unlock(&lista->mutex);
@@ -809,6 +826,7 @@ int main() {
             // Es un producer → tarea para el thread pool (lista ilimitada)
             Tarea tarea = { .client_socket = new_socket };
             agregar_tarea_lista(&lista_tareas, tarea);
+            free(client_sock); // <-- Agrega esta línea aquí
         }
         
     }
@@ -819,7 +837,7 @@ int main() {
     // Esperar a que terminen los hilos de log y mensajes
     pthread_join(log_thread, NULL);
     pthread_join(persister_thread, NULL);
-    pthread_join(mensajes_thread, NULL);
+    //pthread_join(mensajes_thread, NULL);
 
     sem_destroy(&lista_tareas.tareas_disponibles);
     pthread_mutex_destroy(&lista_tareas.mutex);
