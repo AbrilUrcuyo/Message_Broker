@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Número de consumidores que querés lanzar
-NUM_CONSUMERS=2
+NUM_CONSUMERS=6
 
 # Ruta al ejecutable de tu consumer
 CONSUMER_EXEC=./consumer  # Cambiá el nombre si tu ejecutable se llama diferente

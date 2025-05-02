@@ -191,6 +191,7 @@ Mensaje obtener_mensaje() {
     if (listaMensajes->cabeza == NULL) {
         pthread_mutex_unlock(&listaMensajes->mutex);
         mensaje.id = -1; // Indicar que no hay mensajes
+        mensaje.mensaje[0] = '\0'; // <-- Inicializa el string
         return mensaje; // Cola vacía
     }
 
@@ -465,8 +466,9 @@ void* distribuir_a_grupos(void *arg) {
                     }
                     //printf("Mensaje enviado al consumer: %s\n", mensaje.mensaje);
                     snprintf(log.mensaje, MAX_MESSAGE_LENGTH, "Mensaje ID: %d enviado al grupo %d, consumidor %d\n", mensaje.id, actual->grupo.id, actual->grupo.consumidores[idx].id);
-                    agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
                     
+                    log.id = mensaje.id;
+                    agregar_mensaje(log); // Agregar el mensaje a la lista de mensajes
                     actual->grupo.offset = mensaje.id; // <-- Guarda el id del último mensaje enviado
 
                     actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
@@ -628,7 +630,7 @@ int main() {
     archivoLog = abrir_archivo("archivo.log");
     persisterFile = abrir_archivo("persistencia.txt");
 
-    // Configurar el manejo de se ales
+    // Configurar el manejo de señales
     signal(SIGINT, handle_signal);
 
     // Crear socket
@@ -637,14 +639,14 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Para permitir reutilizaci n del puerto
+    // Para permitir reutilización del puerto
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
-    // Configurar direcci n del socket
+    // Configurar dirección del socket
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
@@ -656,7 +658,7 @@ int main() {
     }
 
     // Escuchar por conexiones entrantes
-    if (listen(server_fd, MAX_CONNECTIONS) < 0) { //Tal vez sería bueno cambiar este máximo, es de la cantidad de conexiones que pueden estar en espera.
+    if (listen(server_fd, MAX_CONNECTIONS) < 0) {
         perror("Fallo en listen");
         exit(EXIT_FAILURE);
     }
@@ -665,7 +667,11 @@ int main() {
     init_cola_tareas(&cola_tareas);
 
     for (int i = 0; i < NUM_HILOS; i++) {
-        pthread_create(&pool[i], NULL, trabajador, NULL);
+        if (pthread_create(&pool[i], NULL, trabajador, NULL) != 0) {
+            perror("No se pudo crear hilo del pool");
+            exit(EXIT_FAILURE);
+        }
+        pthread_detach(pool[i]);
     }
 
     printf("Broker iniciado en puerto %d\n", PORT);
@@ -692,7 +698,7 @@ int main() {
     while (get_keep_running()) {
         int new_socket;
         if ((new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-            if (!get_keep_running()) break; // Si se cerr  por la señal, es normal
+            if (!get_keep_running()) break; // Si se cerró por la señal, es normal
             printf("Fallo en accept");
             continue;
         }
