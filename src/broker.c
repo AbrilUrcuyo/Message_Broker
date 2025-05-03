@@ -21,7 +21,7 @@
 #define QUEUE_CAPACITY 1000
 #define MAX_CONSUMERS_GRUPO 10
 #define MAX_TAREAS 200
-#define NUM_HILOS 100
+#define NUM_HILOS 500
 
 sem_t espacios_disponibles;
 sem_t mensajes_disponibles;
@@ -115,7 +115,7 @@ typedef struct {
 ListaGrupos* lista;
 ListaMensajes* listaMensajes;
 ColaCircular colaGlobal; //No se si deberian ser locales
-ColaDinamica colaDinamica;
+ColaCircular colaCircularPrincipal; // Nueva cola circular principal de tamaño 100
 ColaDinamica colaLog;
 ColaDinamica colaPersister;
 ListaTareas lista_tareas;
@@ -170,6 +170,7 @@ void manejar_producer(int client_sock);
 FILE* abrir_archivo(const char* nombre_archivo);
 void escribir_persister(FILE* archivo, Mensaje *mensaje);
 void escribir_log(FILE* archivo, const char* mensaje);
+void escribir_log_envio(FILE* archivo, int mensaje_id, int grupo_id, int consumer_id);
 void cerrar_archivo(FILE* archivo);
 void* escribir_lista_mensajes(void* arg);
 
@@ -235,6 +236,12 @@ void escribir_persister(FILE* archivo, Mensaje *mensaje) {
     fflush(archivo); // Aseguramos que se escriba inmediatamente
     pthread_mutex_unlock(&persister_mutex);
 }
+void escribir_log_envio(FILE* archivo, int mensaje_id, int grupo_id, int consumer_id) {
+    pthread_mutex_lock(&log_mutex);
+    fprintf(archivo, "Mensaje [%d] enviado al grupo [%d] al consumer [%d]\n", mensaje_id, grupo_id, consumer_id);
+    fflush(archivo);
+    pthread_mutex_unlock(&log_mutex);
+}
 int obtener_id_mensaje() {
     pthread_mutex_lock(&mutexID);
     int id = contadorMensajes++;
@@ -280,8 +287,8 @@ int enqueue(ColaCircular* queue, Mensaje mensaje) {
         sem_post(&espacios_disponibles); // Devuelve el espacio al semáforo
         return -1; // Cola llena (esto debería ser raro)
     }
-    mensaje.id = obtener_id_mensaje();
-    enqueue_dinamico(&colaPersister, mensaje);
+    //mensaje.id = obtener_id_mensaje(); // Asignar ID al mensaje
+    //enqueue_dinamico(&colaPersister, mensaje);
 
     queue->mensajes[queue->rear] = mensaje;
     queue->rear = (queue->rear + 1) % QUEUE_CAPACITY;
@@ -324,6 +331,7 @@ void init_cola_dinamica(ColaDinamica* cola) {
 void enqueue_dinamico(ColaDinamica* cola, Mensaje mensaje) {
     NodoMensajeDinamico* nuevo = malloc(sizeof(NodoMensajeDinamico));
     if (!nuevo) return;
+    
     nuevo->mensaje = mensaje;
     nuevo->siguiente = NULL;
 
@@ -519,7 +527,7 @@ void* distribuir_a_grupos(void *arg) {
     Mensaje mensaje;
     while (1) {
         if (!get_keep_running()) break;
-        if (dequeue_dinamico(&colaDinamica, &mensaje) == 0 && get_keep_running()) {
+        if (dequeue(&colaCircularPrincipal, &mensaje) == 0 && get_keep_running()) {
             pthread_mutex_lock(&lista->mutex);
             GrupoNode* actual = lista->cabeza;
             while (actual) {
@@ -527,9 +535,14 @@ void* distribuir_a_grupos(void *arg) {
                 if (actual->grupo.count > 0) {
                     int idx = actual->grupo.rr_index % actual->grupo.count;
                     int fd = actual->grupo.consumidores[idx].socket_fd;
+                    int consumer_id = actual->grupo.consumidores[idx].id;
+                    int grupo_id = actual->grupo.id;
                     if (send(fd, &mensaje, sizeof(Mensaje), MSG_NOSIGNAL) <= 0) {
                         eliminar_consumer(fd);
-                        enqueue_dinamico(&colaDinamica, mensaje); // Reenviar el mensaje
+                        enqueue(&colaCircularPrincipal, mensaje);
+                    } else {
+                        // Loguear el envío
+                        escribir_log_envio(archivoLog, mensaje.id, grupo_id, consumer_id);
                     }
                     actual->grupo.rr_index = (actual->grupo.rr_index + 1) % actual->grupo.count;
                 }
@@ -604,10 +617,10 @@ void manejar_producer(int client_sock) {
     Mensaje nuevoMensaje;
     int read_size; 
     while ((read_size = recv(client_sock, &nuevoMensaje, sizeof(Mensaje), 0)) > 0) {
-        nuevoMensaje.id = obtener_id_mensaje();
-        enqueue_dinamico(&colaDinamica, nuevoMensaje);
-
+        // Encolar en la cola circular principal (bloquea si está llena)
         // Encolar para log y persistencia asíncrona
+        nuevoMensaje.id = obtener_id_mensaje();
+        enqueue(&colaCircularPrincipal, nuevoMensaje);
         enqueue_dinamico(&colaLog, nuevoMensaje);
         enqueue_dinamico(&colaPersister, nuevoMensaje);
     }
@@ -678,16 +691,16 @@ void* trabajador(void* arg) {
     return NULL;
 }
 
-void* hilo_log(void* arg) {
-    while (1) {
-        if (!get_keep_running()) break;
-        Mensaje mensaje;
-        if (dequeue_dinamico(&colaLog, &mensaje) == 0 && get_keep_running()) {
-            escribir_log(archivoLog, mensaje.mensaje);
-        }
-    }
-    return NULL;
-}
+//void* hilo_log(void* arg) {
+//    while (1) {
+//        if (!get_keep_running()) break;
+//        Mensaje mensaje;
+//        if (dequeue_dinamico(&colaLog, &mensaje) == 0 && get_keep_running()) {
+//            escribir_log(archivoLog, mensaje.mensaje);
+//         }
+//    }
+//    return NULL;
+//}
 
 void* hilo_persister(void* arg) {
     while (1) {
@@ -708,7 +721,6 @@ void desbloquear_hilos_para_salida() {
     // Despertar hilos de log, persister y mensajes
     sem_post(&colaLog.mensajes_disponibles);
     sem_post(&colaPersister.mensajes_disponibles);
-    sem_post(&colaDinamica.mensajes_disponibles);
 }
 
 int main() {
@@ -723,14 +735,14 @@ int main() {
 
     // Inicializar la cola
     initQueue(&colaGlobal);
+    initQueue(&colaCircularPrincipal); // Inicializa la cola circular principal
 
     // Inicializar la cola dinámica
-    init_cola_dinamica(&colaDinamica);
-    init_cola_dinamica(&colaLog);
+    //init_cola_dinamica(&colaLog);
     init_cola_dinamica(&colaPersister);
 
-    pthread_t log_thread, persister_thread;
-    pthread_create(&log_thread, NULL, hilo_log, NULL);
+    pthread_t persister_thread;
+    //pthread_create(&log_thread, NULL, hilo_log, NULL);
     pthread_create(&persister_thread, NULL, hilo_persister, NULL);
 
     // Inicializar la lista de tareas
@@ -835,14 +847,13 @@ int main() {
     desbloquear_hilos_para_salida();
 
     // Esperar a que terminen los hilos de log y mensajes
-    pthread_join(log_thread, NULL);
+    //pthread_join(log_thread, NULL);
     pthread_join(persister_thread, NULL);
     //pthread_join(mensajes_thread, NULL);
 
     sem_destroy(&lista_tareas.tareas_disponibles);
     pthread_mutex_destroy(&lista_tareas.mutex);
 
-    liberar_cola_dinamica(&colaDinamica);
     liberar_cola_dinamica(&colaLog);
     liberar_cola_dinamica(&colaPersister);
 
