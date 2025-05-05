@@ -1,5 +1,3 @@
-//
-//          EN ESTA CLASE UN 1 MEMORY LEAK --> Crear un hilo para manejar al cliente  y NO HAY RACE CONDITIONS
 //          HAY POSIBLE MEMORY LEAK AL NO ESPERAR QUE TERMINEN LOS HILOS ANTES DE CERRAR EL BROKER -->451
 
 
@@ -21,7 +19,7 @@
 #define QUEUE_CAPACITY 1000
 #define MAX_CONSUMERS_GRUPO 10
 #define MAX_TAREAS 200
-#define NUM_HILOS 500
+#define NUM_HILOS 200
 
 sem_t espacios_disponibles;
 sem_t mensajes_disponibles;
@@ -186,6 +184,10 @@ void* hilo_persister(void* arg);
 
 //      Desbloquear hilos
 void desbloquear_hilos_para_salida();
+
+//      Liberar recursos
+void liberar_lista_grupos(ListaGrupos* lista);
+void liberar_lista_mensajes(ListaMensajes* listaMensajes);
 
 //----------------------------------------------------------------------------
 void inicializar_lista_mensajes() {
@@ -723,6 +725,37 @@ void desbloquear_hilos_para_salida() {
     sem_post(&colaPersister.mensajes_disponibles);
 }
 
+// Libera la lista de grupos de consumidores
+void liberar_lista_grupos(ListaGrupos* lista) {
+    if (!lista) return;
+    pthread_mutex_lock(&lista->mutex);
+    GrupoNode* actual = lista->cabeza;
+    while (actual) {
+        GrupoNode* tmp = actual;
+        actual = actual->siguiente;
+        pthread_mutex_destroy(&tmp->grupo.mutex);
+        free(tmp);
+    }
+    pthread_mutex_unlock(&lista->mutex);
+    pthread_mutex_destroy(&lista->mutex);
+    free(lista);
+}
+
+// Libera la lista de mensajes
+void liberar_lista_mensajes(ListaMensajes* listaMensajes) {
+    if (!listaMensajes) return;
+    pthread_mutex_lock(&listaMensajes->mutex);
+    NodoMensaje* nodo = listaMensajes->cabeza;
+    while (nodo) {
+        NodoMensaje* tmp = nodo;
+        nodo = nodo->siguiente;
+        free(tmp);
+    }
+    pthread_mutex_unlock(&listaMensajes->mutex);
+    pthread_mutex_destroy(&listaMensajes->mutex);
+    free(listaMensajes);
+}
+
 int main() {
     struct sockaddr_in address;
     int addrlen = sizeof(address);
@@ -851,6 +884,10 @@ int main() {
     pthread_join(persister_thread, NULL);
     //pthread_join(mensajes_thread, NULL);
 
+    for (int i = 0; i < NUM_HILOS; i++) {
+        pthread_join(pool[i], NULL);
+    }
+
     sem_destroy(&lista_tareas.tareas_disponibles);
     pthread_mutex_destroy(&lista_tareas.mutex);
 
@@ -862,6 +899,9 @@ int main() {
     sem_destroy(&espacios_disponibles);
     sem_destroy(&mensajes_disponibles);
     close(server_fd);
+
+    liberar_lista_grupos(lista);
+    liberar_lista_mensajes(listaMensajes);
 
     printf("Broker finalizado\n");
     return 0;
